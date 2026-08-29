@@ -1,0 +1,11 @@
+services:
+  notion-exporter:
+    image: ghcr.io/dmetzner/notion-exporter:latest
+    # build: .   # uncomment to build from source
+    environment:
+      NOTION_TOKEN: ${NOTION_TOKEN}
+      RETENTION: "30"
+      LOG_LEVEL: info
+    volumes:
+      - ./exports:/exports
+    restart: "no"

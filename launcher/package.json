@@ -1,0 +1,19 @@
+{
+  "name": "@notion-export/launcher",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cross-platform automation around the notion-exporter clone: update, build, export, open.",
+  "bin": {
+    "notion-export": "tui.mjs"
+  },
+  "scripts": {
+    "tui": "node tui.mjs",
+    "refresh": "node refresh.mjs",
+    "export": "node refresh.mjs --no-update",
+    "update": "node refresh.mjs --no-export"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

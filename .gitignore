@@ -1,0 +1,17 @@
+node_modules
+dist
+coverage
+package-lock.json
+.env
+.env.local
+.env.*.local
+.envrc
+exports/
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+.claude/
+backlog

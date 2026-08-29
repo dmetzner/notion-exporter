@@ -1,0 +1,15 @@
+# The nightly backup runs from launchd, with no TTY. When pnpm's own major version
+# changes (corepack pulled 10 -> 11 on 2026-07-22), pnpm decides node_modules must be
+# purged and reinstalled — and then asks for confirmation. With no TTY it aborts
+# instead (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY), so `pnpm dev export` failed
+# every night for two weeks and the only symptom was a two-week-old export.
+# Setting it here, not in .npmrc: pnpm 11 reads its own settings from this file.
+confirmModulesPurge: false
+allowBuilds:
+  '@biomejs/biome': true
+  esbuild: true
+onlyBuiltDependencies:
+  - "@biomejs/biome"
+  - esbuild
+overrides:
+  esbuild: '>=0.28.1'

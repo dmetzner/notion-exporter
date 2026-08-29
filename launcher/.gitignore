@@ -1,0 +1,2 @@
+# Launcher run logs (live stdout/stderr captures + rolling log)
+logs/

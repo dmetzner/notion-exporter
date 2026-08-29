@@ -1,0 +1,51 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`markdown snapshots > kitchen-sink page 1`] = `
+"# 🧪 Kitchen Sink
+
+<nav class="breadcrumbs"><a href="../Root.md" title="Root">Root</a></nav>
+
+<h1 id="section">Section</h1>
+
+Mix <strong>bold</strong> + <em>italic</em> + <code>code</code> + <a href="Friend.md">Friend</a>.
+
+- first
+
+- second
+
+- [x] done
+
+> a saying
+
+\`\`\`python
+print('hi')
+\`\`\`
+
+---
+
+![a cat](assets/abc.png)
+
+| A | B |
+| --- | --- |
+| 1 | 2 |
+
+<div class="columns">
+
+<div class="column">
+
+left
+
+</div>
+<div class="column">
+
+right
+
+</div>
+
+</div>
+
+<a class="page-link" href="Friend.md"><span class="page-link-icon page-link-fallback">📄</span><span class="page-link-title">Friend</span></a>
+
+<footer class="page-footer">Last edited 2026-05-12 · Exported 2026-05-30 · <a href="https://notion.so/00000000000000000000000000000001" rel="noopener" target="_blank">Open in Notion ↗</a></footer>
+"
+`;

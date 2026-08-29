@@ -1,0 +1,72 @@
+{
+  "name": "notion-exporter",
+  "version": "0.1.0",
+  "description": "CLI that backs up a Notion workspace locally: full-fidelity JSON + Markdown + HTML + assets",
+  "license": "MIT",
+  "author": "Daniel Metzner",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dmetzner/notion-exporter.git"
+  },
+  "homepage": "https://github.com/dmetzner/notion-exporter",
+  "bugs": "https://github.com/dmetzner/notion-exporter/issues",
+  "keywords": [
+    "notion",
+    "notion-backup",
+    "backup",
+    "archive",
+    "export",
+    "markdown",
+    "obsidian",
+    "static-site",
+    "html",
+    "cli"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "bin": {
+    "notion-exporter": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "contrast": "tsx scripts/contrast-check.ts",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm contrast"
+  },
+  "dependencies": {
+    "@notionhq/client": "^5.26.0",
+    "bottleneck": "^2.19.5",
+    "commander": "^15.0.0",
+    "dotenv": "^17.4.2",
+    "katex": "^0.18.4",
+    "lunr": "^2.3.9",
+    "marked": "^18.0.10",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
+    "undici": "8.10.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.9",
+    "@types/katex": "^0.16.8",
+    "@types/lunr": "^2.3.7",
+    "@types/node": "^26.2.0",
+    "tsup": "^8.3.5",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
+  }
+}
