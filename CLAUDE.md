@@ -20,6 +20,18 @@ pnpm lint         # biome check
 pnpm build        # tsup → dist/cli.js
 ```
 
+## How changes land
+
+**Every change goes through a pull request — no direct pushes to `main`.** Merging needs three
+things: this repo's gate green locally (`pnpm check`), CI green, and an independent review with
+no unresolved high or major finding on the commit that gets merged.
+
+**A CI job that could not START is not a pass.** The Actions billing block dies in about three
+seconds with no logs and no steps; that is "could not run", and it is said out loud on the PR
+rather than merged past in silence.
+
+**The only exception is a project Daniel has explicitly called prototyping. This is not one.**
+
 ## Stack
 
 Node ≥ 22.19 (undici 8 floor), TypeScript strict, ESM-only, pnpm. Vitest (unit + snapshot;
@@ -165,7 +177,6 @@ Only the entries whose location is not guessable:
 ## Conventions
 
 - Tests first or alongside. A new block type ships with a snapshot.
-- `pnpm check` clean before commit; CI green before merge.
 - No new runtime dependency without ROI — every dependency is a maintenance promise.
 - Path and asset mutations go through `assertWithinRoot`. Log via pino, never `console.log`.
 
