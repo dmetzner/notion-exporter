@@ -1,10 +1,14 @@
-# The nightly backup runs from launchd, with no TTY. When pnpm's own major version
-# changes (corepack pulled 10 -> 11 on 2026-07-22), pnpm decides node_modules must be
-# purged and reinstalled — and then asks for confirmation. With no TTY it aborts
-# instead (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY), so `pnpm dev export` failed
-# every night for two weeks and the only symptom was a two-week-old export.
-# Setting it here, not in .npmrc: pnpm 11 reads its own settings from this file.
-confirmModulesPurge: false
+# There was a `confirmModulesPurge: false` here, and the reason it is gone matters more than
+# the setting did. On a pnpm major bump (corepack pulled 10 -> 11 on 2026-07-22) pnpm decided
+# node_modules had to be purged, asked for confirmation, and — with no TTY under launchd —
+# aborted with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY, so the nightly export failed for
+# two weeks with a two-week-old export as the only symptom.
+#
+# pnpm 12 is the Rust rewrite: it has no purge prompt at all (`clean` / `purge` are explicit
+# commands now) and it does not recognise the setting, warning on every run that it was
+# ignored. An inert guard that reads like a live one is how the two weeks happened, so it is
+# deleted rather than kept "just in case" — and the hazard it covered is what the note above
+# is for. If this project is ever pinned back to pnpm 11, restore the setting with it.
 allowBuilds:
   '@biomejs/biome': true
   esbuild: true
