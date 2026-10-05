@@ -46,11 +46,11 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm contrast"
   },
   "dependencies": {
-    "@notionhq/client": "^5.26.0",
+    "@notionhq/client": "^5.27.0",
     "bottleneck": "^2.19.5",
     "commander": "^15.0.0",
-    "dotenv": "^18.0.3",
-    "katex": "^0.18.9",
+    "dotenv": "^18.0.5",
+    "katex": "^0.19.0",
     "lunr": "^2.3.9",
     "marked": "^18.0.14",
     "pino": "^10.3.1",
