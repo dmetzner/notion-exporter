@@ -151,7 +151,10 @@ describe("crawl", () => {
             next_cursor: null,
           }),
           pages: {
-            retrieve: async () => ({ id: "p2", parent: { type: "page_id", page_id: "p1" } }),
+            retrieve: async ({ page_id }: { page_id: string }) =>
+              page_id === "p2"
+                ? { id: "p2", parent: { type: "page_id", page_id: "p1" } }
+                : { id: page_id, in_trash: true, parent: { type: "page_id", page_id: "p1" } },
           },
           blocks: {
             children: {
@@ -164,13 +167,24 @@ describe("crawl", () => {
         }),
       ),
     } as unknown as import("../src/notion/client.js").RateLimitedNotion;
+    const blocksCache = new Map();
     const all = await crawlAll(fake, {
       expandChildPages: true,
-      reuseBlocks: async (o) => (o.id === "p1" ? [{ id: "p2", type: "child_page" }] : null),
+      blocksCache,
+      // The reused tree still names a since-trashed page.
+      reuseBlocks: async (o) =>
+        o.id === "p1"
+          ? [
+              { id: "p2", type: "child_page" },
+              { id: "gone", type: "child_page" },
+            ]
+          : null,
     });
     expect(all.map((o) => o.id)).toEqual(["p1", "p2"]);
     // p1 came from the reused tree; only the newly found p2 was walked.
     expect(listed).toEqual(["p2"]);
+    // Reused trees must not feed the export's live-blocks cache.
+    expect([...blocksCache.keys()]).toEqual(["p2"]);
   });
 
   it("retrieves a database linked from several pages only once under concurrency", async () => {

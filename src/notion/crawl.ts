@@ -273,6 +273,8 @@ export async function crawlAll(
 
 interface PageRetrieveResponse {
   id: string;
+  archived?: boolean;
+  in_trash?: boolean;
   url?: string;
   last_edited_time?: string;
   parent?: NotionParent;
@@ -323,7 +325,16 @@ async function expandViaChildPages(
       if (visited.has(id)) continue;
       visited.add(id);
       const obj = byId.get(id);
-      const reused = obj && reuseBlocks ? await reuseBlocks(obj).catch(() => null) : null;
+      const reused =
+        obj && reuseBlocks
+          ? await reuseBlocks(obj).catch((err) => {
+              log?.debug(
+                { id, err: (err as Error).message },
+                "crawl: block reuse failed, fetching",
+              );
+              return null;
+            })
+          : null;
       let blocks: NotionBlock[];
       if (reused) blocks = reused;
       else {
@@ -376,7 +387,9 @@ async function expandViaChildPages(
         });
         known.add(dbId);
       } catch {
-        // database may have been deleted or the integration lacks access
+        // database may have been deleted or the integration lacks access;
+        // release the claim so another page linking it can try again
+        claimedDbs.delete(dbId);
       }
     }
     const newIds = childPageIds.filter((cid) => !known.has(cid));
@@ -406,7 +419,9 @@ async function expandViaChildPages(
       }),
     );
     for (const page of retrieved) {
-      if (!page || known.has(page.id)) continue;
+      // pages.retrieve answers 200 for trashed pages, and a reused (older)
+      // block tree can still hold a child_page block for one.
+      if (!page || known.has(page.id) || page.archived || page.in_trash) continue;
       const search: SearchResultPage = {
         object: "page",
         id: page.id,

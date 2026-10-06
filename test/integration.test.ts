@@ -1,3 +1,4 @@
+import dns from "node:dns";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -164,6 +165,12 @@ describe("integration: full export", () => {
     const cfg = loadConfig({ NOTION_TOKEN: "secret_x", OUT_DIR: tmp });
     const log = createLogger("error");
 
+    // The SSRF gate resolves the fake asset host for real; on resolvers that
+    // take seconds to say NXDOMAIN that alone blew the 5 s test timeout.
+    // ENOTFOUND is what it gets anyway — just answer instantly.
+    const lookupSpy = vi
+      .spyOn(dns.promises, "lookup")
+      .mockRejectedValue(Object.assign(new Error("nx"), { code: "ENOTFOUND" }));
     const origFetch = global.fetch;
     global.fetch = (async () =>
       ({
@@ -226,6 +233,7 @@ describe("integration: full export", () => {
       expect(dbRaw.views[0].rowOrder).toEqual(["row-1"]);
     } finally {
       global.fetch = origFetch;
+      lookupSpy.mockRestore();
       await fsp.rm(tmp, { recursive: true, force: true });
     }
   });
