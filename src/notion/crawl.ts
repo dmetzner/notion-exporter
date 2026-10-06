@@ -172,6 +172,10 @@ export interface CrawlOptions {
   /** Number of pages to walk in parallel during expansion. Higher = faster
    * discovery on shallow workspaces, but contends with the Notion limiter. */
   concurrency?: number;
+  /** Returns a page's block tree from a previous export when it is provably
+   * unchanged (same lastEditedTime), or null to fetch it from the API. Lets
+   * an incremental run skip re-walking every untouched page's block tree. */
+  reuseBlocks?: (obj: DiscoveredObject) => Promise<NotionBlock[] | null>;
 }
 
 export async function crawlAll(
@@ -253,6 +257,7 @@ export async function crawlAll(
       log,
       opts.onDiscoveryProgress,
       opts.concurrency ?? 1,
+      opts.reuseBlocks,
     );
     log?.info(
       { total: objects.length, pages: objects.filter((o) => o.object === "page").length },
@@ -283,6 +288,7 @@ async function expandViaChildPages(
   log: Logger | undefined,
   onProgress: ((s: { visited: number; queued: number; total: number }) => void) | undefined,
   concurrency: number,
+  reuseBlocks: CrawlOptions["reuseBlocks"],
 ): Promise<void> {
   // Start with every page we got from search. Pop ids, fetch their blocks,
   // pull child_page ids out, retrieve unknown ones, add to objects, queue
@@ -299,6 +305,8 @@ async function expandViaChildPages(
     }
   }
   const visited = new Set<string>();
+  const byId = new Map(objects.map((o) => [o.id, o] as const));
+  const claimedDbs = new Set<string>();
   let lastLog = Date.now();
   const total = () => objects.filter((o) => o.object === "page").length;
   const emit = () => onProgress?.({ visited: visited.size, queued: queue.length, total: total() });
@@ -314,13 +322,18 @@ async function expandViaChildPages(
       if (!id) return;
       if (visited.has(id)) continue;
       visited.add(id);
+      const obj = byId.get(id);
+      const reused = obj && reuseBlocks ? await reuseBlocks(obj).catch(() => null) : null;
       let blocks: NotionBlock[];
-      try {
-        blocks = await fetchBlocksRecursive(notion, id);
-      } catch {
-        continue;
+      if (reused) blocks = reused;
+      else {
+        try {
+          blocks = await fetchBlocksRecursive(notion, id);
+        } catch {
+          continue;
+        }
+        if (blocksCache) blocksCache.set(id, blocks);
       }
-      if (blocksCache) blocksCache.set(id, blocks);
       await processPageBlocks(id, blocks);
     }
   }
@@ -332,7 +345,10 @@ async function expandViaChildPages(
     // otherwise render as "Untitled" page links.
     const { pages: childPageIds, databases: childDbIds } = collectChildItems(blocks);
     for (const dbId of childDbIds) {
-      if (known.has(dbId)) continue;
+      // Claim before awaiting: concurrent workers see the same linked DB on
+      // several pages, and checking `known` alone let each one retrieve it.
+      if (known.has(dbId) || claimedDbs.has(dbId)) continue;
+      claimedDbs.add(dbId);
       try {
         const db = (await notion.run((c) =>
           c.databases.retrieve({ database_id: dbId }),
@@ -411,6 +427,7 @@ async function expandViaChildPages(
         ...(icon ? { icon } : {}),
       };
       objects.push(obj);
+      byId.set(page.id, obj);
       known.add(page.id);
       if (!queued.has(page.id)) {
         queue.push(page.id);

@@ -55,7 +55,7 @@ import {
   sitemapIconFromObj,
 } from "../notion/meta.js";
 import { fetchAllViews, normalizeViews } from "../notion/views.js";
-import { assertWithinRoot } from "../util/fs.js";
+import { assertWithinRoot, assertWithinRootAsync } from "../util/fs.js";
 import { cloneFile } from "../util/fsclone.js";
 import { VERSION } from "../version.js";
 
@@ -1202,6 +1202,28 @@ async function finalizeExport(
   return { manifest, failedAssetsCount: failedAssets.length };
 }
 
+// Expansion walks every page's full block tree (~15 API calls per page) just
+// to find child_page/child_database blocks. For a page whose lastEditedTime
+// matches the previous export, its raw JSON already holds that exact tree —
+// the same equality the incremental skip set trusts — so read it from disk.
+async function previousBlocksReader(
+  outDir: string,
+): Promise<((obj: DiscoveredObject) => Promise<NotionBlock[] | null>) | undefined> {
+  const prev = await findPreviousExport(outDir);
+  if (!prev) return undefined;
+  const entries = new Map(prev.manifest.entries.map((e) => [e.id, e]));
+  return async (obj) => {
+    const e = entries.get(obj.id);
+    if (e?.kind !== "page" || !obj.lastEditedTime || e.lastEditedTime !== obj.lastEditedTime) {
+      return null;
+    }
+    const raw = JSON.parse(
+      await fsp.readFile(await assertWithinRootAsync(prev.root, e.rawPath), "utf8"),
+    ) as { blocks?: unknown };
+    return Array.isArray(raw.blocks) ? (raw.blocks as NotionBlock[]) : null;
+  };
+}
+
 // --- Phase: discover incremental skip candidates ----------------------------
 // Build the skip set by diffing this crawl's `lastEditedTime` values against
 // the previous export's manifest. Returns the previous export reference (or
@@ -1256,6 +1278,7 @@ export async function runExport(
     expandChildPages: cfg.crawl.expandChildPages,
     concurrency: cfg.crawl.concurrency,
     blocksCache,
+    reuseBlocks: opts.incremental ? await previousBlocksReader(outDir) : undefined,
     log,
     onDiscoveryProgress: opts.onProgress
       ? (s) =>

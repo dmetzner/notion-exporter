@@ -137,4 +137,74 @@ describe("crawl", () => {
     expect(all[0]!.title).toBe("(untitled page)");
     expect(all[1]!.title).toBe("(untitled database)");
   });
+
+  it("expansion takes reused blocks instead of walking unchanged pages", async () => {
+    const listed: string[] = [];
+    const fake = {
+      run: vi.fn(async (fn: (c: unknown) => Promise<unknown>) =>
+        fn({
+          search: async () => ({
+            results: [
+              { object: "page", id: "p1", last_edited_time: "t1", parent: { type: "workspace" } },
+            ],
+            has_more: false,
+            next_cursor: null,
+          }),
+          pages: {
+            retrieve: async () => ({ id: "p2", parent: { type: "page_id", page_id: "p1" } }),
+          },
+          blocks: {
+            children: {
+              list: async ({ block_id }: { block_id: string }) => {
+                listed.push(block_id);
+                return { results: [], has_more: false, next_cursor: null };
+              },
+            },
+          },
+        }),
+      ),
+    } as unknown as import("../src/notion/client.js").RateLimitedNotion;
+    const all = await crawlAll(fake, {
+      expandChildPages: true,
+      reuseBlocks: async (o) => (o.id === "p1" ? [{ id: "p2", type: "child_page" }] : null),
+    });
+    expect(all.map((o) => o.id)).toEqual(["p1", "p2"]);
+    // p1 came from the reused tree; only the newly found p2 was walked.
+    expect(listed).toEqual(["p2"]);
+  });
+
+  it("retrieves a database linked from several pages only once under concurrency", async () => {
+    let dbRetrieves = 0;
+    const page = (id: string) => ({
+      object: "page",
+      id,
+      last_edited_time: "t",
+      parent: { type: "workspace" },
+    });
+    const fake = {
+      run: vi.fn(async (fn: (c: unknown) => Promise<unknown>) =>
+        fn({
+          search: async () => ({
+            results: [page("p1"), page("p2")],
+            has_more: false,
+            next_cursor: null,
+          }),
+          databases: {
+            retrieve: async () => {
+              dbRetrieves++;
+              await new Promise((r) => setTimeout(r, 5));
+              return { id: "d1", parent: { type: "workspace" } };
+            },
+          },
+        }),
+      ),
+    } as unknown as import("../src/notion/client.js").RateLimitedNotion;
+    const all = await crawlAll(fake, {
+      expandChildPages: true,
+      concurrency: 2,
+      reuseBlocks: async () => [{ id: "d1", type: "child_database" }],
+    });
+    expect(all.filter((o) => o.id === "d1")).toHaveLength(1);
+    expect(dbRetrieves).toBe(1);
+  });
 });
