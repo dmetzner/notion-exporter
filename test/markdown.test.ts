@@ -37,6 +37,19 @@ describe("rt — Notion in-workspace href rewriting", () => {
     ).toContain("../Food.html");
   });
 
+  it("rewrites fully-qualified notion.so and app.notion.com links", () => {
+    for (const host of ["https://www.notion.so", "https://notion.so", "https://app.notion.com"]) {
+      const out = rt([{ plain_text: "x", href: `${host}/p/${id}`, annotations: {} }], resolve);
+      expect(out).toContain("../Food.html");
+      expect(out).not.toContain(host);
+    }
+    const q = rt(
+      [{ plain_text: "x", href: `https://www.notion.so/Food-${id}?pvs=4#abc123`, annotations: {} }],
+      resolve,
+    );
+    expect(q).toContain("../Food.html");
+  });
+
   it("leaves the href untouched when the target isn't in the export", () => {
     const out = rt([{ plain_text: "x", href: `/p/${id}`, annotations: {} }], () => null);
     expect(out).toContain(`/p/${id}`);
