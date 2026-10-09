@@ -92,13 +92,14 @@ function wrapHtml(s: string, tag: string): string {
 
 // Notion stores in-workspace links in a few shapes, all carrying a 32-hex
 // page id: `/<32-hex-id>`, `/<title-slug>-<id>`, and the short public form
-// `/p/<id>` — optionally fully-qualified with `https://www.notion.so` and an
-// optional `#<block-id>` fragment. Detect any of them and rewrite to a local
-// page link if the resolver knows the target — otherwise leave the original
-// href (it'll deep-link into Notion in the browser).
+// `/p/<id>` — optionally fully-qualified with `https://www.notion.so` or
+// `https://app.notion.com` (the host current API payloads use), an optional
+// `?pvs=…` query and an optional `#<block-id>` fragment. Detect any of them and
+// rewrite to a local page link if the resolver knows the target — otherwise
+// leave the original href (it'll deep-link into Notion in the browser).
 function maybeRewriteNotionHref(href: string, resolveLink?: ResolveLink): string {
   const m = href.match(
-    /^(?:https?:\/\/(?:www\.)?notion\.so)?\/(?:p\/)?(?:[^/]+-)?([0-9a-f]{32})(#[0-9a-f]+)?$/i,
+    /^(?:https?:\/\/(?:(?:www\.)?notion\.so|app\.notion\.com))?\/(?:p\/)?(?:[^/]+-)?([0-9a-f]{32})(?:\?[^#]*)?(#[0-9a-f]+)?$/i,
   );
   if (!m?.[1]) return href;
   const hex = m[1];
