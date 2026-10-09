@@ -43,6 +43,11 @@ export function isRetryableError(err: unknown): boolean {
   const e = err as NotionApiError;
   if (isRateLimitError(err)) return true;
   if (typeof e?.status === "number" && e.status >= 500 && e.status < 600) return true;
+  // Transient transport failures carry no HTTP status: the SDK's own timeout,
+  // and undici's `TypeError("fetch failed")` on a reset/refused socket. Every
+  // call we make is a read, so replaying one is safe.
+  if (e?.code === "notionhq_client_request_timeout") return true;
+  if (err instanceof TypeError && err.message === "fetch failed") return true;
   return false;
 }
 
@@ -53,11 +58,13 @@ export class RateLimitedNotion {
   private readonly log: Logger | undefined;
 
   constructor(opts: RateLimitedClientOptions) {
-    // We own retry/backoff (see attempt() below), so silence the SDK's own
-    // per-request WARN logs for handled 429/5xx; genuine errors still surface.
-    // Literal (= LogLevel.ERROR) keeps this a type-only import, so test mocks
-    // of @notionhq/client need not also export the LogLevel enum.
-    this.client = new Client({ auth: opts.token, logLevel: "error" as LogLevel });
+    // We own retry/backoff (see attempt() below), so turn the SDK's built-in
+    // retry off — left on, it nests inside ours (up to 3 × maxRetries attempts,
+    // each SDK back-off sleeping while it holds a limiter slot) — and silence
+    // its per-request WARN logs for handled 429/5xx; genuine errors still
+    // surface. Literal (= LogLevel.ERROR) keeps this a type-only import, so
+    // test mocks of @notionhq/client need not also export the LogLevel enum.
+    this.client = new Client({ auth: opts.token, logLevel: "error" as LogLevel, retry: false });
     this.limiter = new Bottleneck({
       minTime: opts.minTime ?? 150,
       maxConcurrent: opts.maxConcurrent ?? 4,
