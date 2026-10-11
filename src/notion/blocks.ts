@@ -32,13 +32,17 @@ function syncedSourceId(block: NotionBlock): string | null {
   return sb?.synced_from?.block_id ?? null;
 }
 
+// `ancestors` is the id chain from the page down to this block — a cycle guard
+// only. It must NOT be a page-wide "seen" set: the same synced source can
+// legitimately appear twice on one page (the original plus a copy, or two
+// copies), and a shared set rendered every repeat after the first as empty.
 export async function fetchBlocksRecursive(
   notion: RateLimitedNotion,
   blockId: string,
-  visited = new Set<string>(),
+  ancestors: ReadonlySet<string> = new Set(),
 ): Promise<NotionBlock[]> {
-  if (visited.has(blockId)) return [];
-  visited.add(blockId);
+  if (ancestors.has(blockId)) return [];
+  const path = new Set(ancestors).add(blockId);
 
   const root = await fetchBlockChildren(notion, blockId);
   const blocksWithChildren = root.filter((b) => b.has_children);
@@ -47,7 +51,7 @@ export async function fetchBlocksRecursive(
     await Promise.all(
       blocksWithChildren.map(async (block) => {
         const fetchFrom = syncedSourceId(block) ?? block.id;
-        block.children = await fetchBlocksRecursive(notion, fetchFrom, visited);
+        block.children = await fetchBlocksRecursive(notion, fetchFrom, path);
       }),
     );
   }

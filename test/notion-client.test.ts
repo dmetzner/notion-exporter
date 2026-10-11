@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   isRateLimitError,
   isRetryableError,
@@ -18,6 +18,30 @@ describe("notion client helpers", () => {
     expect(isRetryableError({ status: 500 })).toBe(true);
     expect(isRetryableError({ status: 404 })).toBe(false);
     expect(isRetryableError({ status: 429 })).toBe(true);
+  });
+
+  it("treats transport failures (SDK timeout, undici fetch failed) as retryable", () => {
+    expect(isRetryableError({ code: "notionhq_client_request_timeout" })).toBe(true);
+    expect(isRetryableError(new TypeError("fetch failed"))).toBe(true);
+    expect(isRetryableError(new TypeError("x is not a function"))).toBe(false);
+  });
+
+  it("disables the SDK's own retry so it does not nest inside ours", async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ object: "error", status: 429, code: "rate_limited", message: "slow" }),
+          { status: 429, headers: { "retry-after": "0", "content-type": "application/json" } },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const notion = new RateLimitedNotion({ token: "t", minTime: 1, maxRetries: 0 });
+      await expect(notion.run((c) => c.users.me({}))).rejects.toMatchObject({ status: 429 });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("paginate follows has_more cursor until exhausted", async () => {
