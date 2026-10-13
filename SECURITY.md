@@ -13,8 +13,9 @@ upgrade when a new tag ships.
 
 ## Reporting a vulnerability
 
-Report privately through **[GitHub Private Vulnerability Reporting](https://github.com/dmetzner/notion-exporter/security/advisories/new)**.
-Please do **not** file public issues for security bugs.
+Report privately by email to **[contact@metzner.uk](mailto:contact@metzner.uk)**
+with "notion-exporter security" in the subject. Please do **not** file public
+issues for security bugs.
 
 We aim to acknowledge reports within 72 hours and ship a fix or mitigation
 within 30 days.
@@ -31,12 +32,16 @@ integration in the workspace.
 - Reads `NOTION_TOKEN` from environment or `.env`.
 - Makes HTTPS calls to `api.notion.com` and to the signed `*.amazonaws.com`
   URLs Notion returns for file uploads.
+- Downloads **external** media (image, video, audio, file and PDF blocks that
+  link to a URL instead of an upload) from whatever public host the block
+  points at. Each hop passes the SSRF gate, and each asset is capped at 1 GiB.
 - Writes JSON, Markdown, HTML, and downloaded assets to `OUT_DIR`.
 
 ### What the tool does not do
 
-- It never sends data to any third party other than the official Notion API
-  endpoints and the signed asset hosts.
+- It never sends workspace data anywhere. Apart from the Notion API and its
+  signed asset hosts, the only requests are plain GETs to the external media
+  URLs embedded in your pages, which reveal your IP address to those hosts.
 - It never writes the token to disk or to log output.
 - It does not modify Notion content (no writes — read-only scopes only).
 

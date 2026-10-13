@@ -581,7 +581,7 @@ const RENDERERS: Record<string, BlockRenderer> = {
           const alt = rt(img.caption as RichText, s.resolveLink);
           const src = safeLinkUrl(resolveFileSrc(img));
           // `[![alt](src)](href)` → marked emits `<a href><img></a>`.
-          return `[![${alt}](${src})](${mdUrl(safeLinkUrl(cardLink.href))})`;
+          return `[![${alt}](${mdUrl(src)})](${mdUrl(safeLinkUrl(cardLink.href))})`;
         }
         return blockTo(c, 0, s.ctx);
       })
@@ -593,10 +593,20 @@ const RENDERERS: Record<string, BlockRenderer> = {
   // Code blocks render verbatim — `rt()` would emit `<strong>` etc. for
   // annotated rich_text which would then appear as literal tags inside the
   // rendered <pre><code> rather than as formatting.
-  code: (s) => `\`\`\`${(s.data.language as string) ?? ""}\n${plainTextOf(s.text ?? [])}\n\`\`\``,
+  //
+  // SECURITY: the fence is one backtick longer than the longest run in the
+  // content, so a code block holding ``` cannot close early and hand the rest
+  // to marked as raw HTML. The language is cut to an info-string-safe charset.
+  code: (s) => {
+    const text = plainTextOf(s.text ?? []);
+    const longest = (text.match(/`+/g) ?? []).reduce((m, run) => Math.max(m, run.length), 0);
+    const fence = "`".repeat(Math.max(3, longest + 1));
+    const lang = String(s.data.language ?? "").replace(/[^\w+#.-]/g, "");
+    return `${fence}${lang}\n${text}\n${fence}`;
+  },
   divider: () => "---",
   image: (s) =>
-    `![${rt(s.data.caption as RichText, s.resolveLink)}](${safeLinkUrl(resolveFileSrc(s.data))})`,
+    `![${rt(s.data.caption as RichText, s.resolveLink)}](${mdUrl(safeLinkUrl(resolveFileSrc(s.data)))})`,
   audio: (s) => {
     // Render an inline <audio> player. Caption is optional; when present it
     // sits under the player inside the same <figure>. `safeLinkUrl` defense-in-

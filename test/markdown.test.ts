@@ -1,5 +1,6 @@
 import katex from "katex";
 import { describe, expect, it, vi } from "vitest";
+import { renderHtml } from "../src/export/html.js";
 import type { ExportedDatabase, ExportedPage } from "../src/export/json.js";
 import {
   collectPageMeta,
@@ -3160,5 +3161,76 @@ describe("markdown", () => {
     const evilMd = pageToMarkdown(evilPage);
     expect(evilMd).toContain(":&lt;x&gt;:");
     expect(evilMd).not.toContain(":<x>:");
+  });
+});
+
+describe("security: code and image blocks cannot break out into HTML", () => {
+  const pageWith = (block: NotionBlock): ExportedPage => ({
+    id: "p",
+    title: "T",
+    page: {},
+    blocks: [block],
+    rawPath: "",
+  });
+  const code = (text: string, language = "markdown") =>
+    pageWith({ id: "c", type: "code", code: { rich_text: [rtNode(text)], language } });
+
+  it.each([
+    ["```", "x\n```\n\n<img src=x onerror=alert(1)>"],
+    ["````", "x\n````\n\n<img src=x onerror=alert(1)>"],
+  ])("a code block containing %s stays one code block", (_label, text) => {
+    const html = renderHtml("T", pageToMarkdown(code(text)));
+    expect(html).not.toContain("<img src=x");
+    expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(html.match(/<pre>/g)?.length).toBe(1);
+  });
+
+  it("keeps the plain ``` fence when the content has no backtick run", () => {
+    expect(pageToMarkdown(code("x=1", "python"))).toContain("```python\nx=1\n```");
+  });
+
+  it("drops a tampered language that would close the fence", () => {
+    const html = renderHtml(
+      "T",
+      pageToMarkdown(code("x", "js\n```\n<img src=x onerror=alert(1)>")),
+    );
+    expect(html).not.toContain("<img src=x");
+  });
+
+  it.each([
+    ["inline link", "[click](javascript:alert(1))"],
+    ["image", "![x](javascript:alert(1))"],
+    ["autolink", "<javascript:alert(1)>"],
+    ["reference link", "[click][r]\n\n[r]: javascript:alert(1)"],
+  ])("plain text cannot become a javascript: %s", (_label, text) => {
+    const page = pageWith({
+      id: "p1",
+      type: "paragraph",
+      paragraph: { rich_text: [rtNode(text)] },
+    });
+    const html = renderHtml("T", pageToMarkdown(page));
+    expect(html).not.toMatch(/(href|src)="javascript:/i);
+  });
+
+  it("keeps ordinary markdown links working", () => {
+    const html = renderHtml("T", "[a](https://example.com/x) [b](../Food.html) [c](mailto:a@b.c)");
+    expect(html).toContain('href="https://example.com/x"');
+    expect(html).toContain('href="../Food.html"');
+    expect(html).toContain('href="mailto:a@b.c"');
+  });
+
+  it("escapes an unlocalised image URL that tries to break out of the attribute", () => {
+    const md = pageToMarkdown(
+      pageWith({
+        id: "i",
+        type: "image",
+        image: {
+          type: "external",
+          external: { url: 'https://e.example/a.png"><img src=x onerror=alert(1)>' },
+          caption: [],
+        },
+      }),
+    );
+    expect(renderHtml("T", md)).not.toContain("<img src=x");
   });
 });

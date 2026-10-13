@@ -332,6 +332,50 @@ interface CreateOpts {
   dnsLookupImpl?: DnsLookupImpl;
   concurrency?: number;
   onDownloaded?: (rec: AssetRecord) => void;
+  /** Per-asset byte cap; defaults to {@link MAX_ASSET_BYTES}. */
+  maxBytes?: number;
+}
+
+/**
+ * Per-asset byte cap. Downloads stream to disk, so this bounds disk use and
+ * stops an external link to a multi-GB file from filling the export.
+ */
+export const MAX_ASSET_BYTES = 1024 ** 3;
+
+/**
+ * Stream the body into a temp file in `dir`, hashing as it goes, so memory
+ * stays flat whatever the asset size. On any failure the partial file is
+ * removed. The caller renames `tmp` to its content-addressed name.
+ */
+async function saveCapped(
+  res: Response,
+  dir: string,
+  max: number,
+): Promise<{ tmp: string; sha: string; bytes: number }> {
+  const tooLarge = () => new Error(`asset exceeds ${max} bytes`);
+  if (Number(res.headers.get("content-length")) > max) {
+    await res.body?.cancel();
+    throw tooLarge();
+  }
+  const tmp = path.join(dir, `.part-${crypto.randomUUID()}`);
+  const hash = crypto.createHash("sha256");
+  let bytes = 0;
+  const fh = await fsp.open(tmp, "w");
+  try {
+    // Throwing inside for-await cancels the stream, so the rest is never read.
+    for await (const chunk of res.body ?? [new Uint8Array(await res.arrayBuffer())]) {
+      bytes += chunk.length;
+      if (bytes > max) throw tooLarge();
+      hash.update(chunk);
+      await fh.write(chunk);
+    }
+  } catch (err) {
+    await fh.close();
+    await fsp.rm(tmp, { force: true });
+    throw err;
+  }
+  await fh.close();
+  return { tmp, sha: hash.digest("hex"), bytes };
 }
 
 // Capture the platform's original `fetch` at module load so we can detect
@@ -525,12 +569,15 @@ export function createAssetCollector(opts: CreateOpts): AssetCollector {
           fails.push(failure);
           throw new Error(`asset download failed (${res.status}): ${safeAttempted}`);
         }
-        const buf = Buffer.from(await res.arrayBuffer());
-        const sha = crypto.createHash("sha256").update(buf).digest("hex");
+        const { tmp, sha, bytes } = await saveCapped(
+          res,
+          opts.assetsDir,
+          opts.maxBytes ?? MAX_ASSET_BYTES,
+        );
         const ext = guessExt(url, res.headers.get("content-type"), hint);
         const filename = `${sha.slice(0, 16)}${ext}`;
         const abs = path.join(opts.assetsDir, filename);
-        await fsp.writeFile(abs, buf);
+        await fsp.rename(tmp, abs);
         // POSIX-separated: local_path is stored in raw JSON / manifest and used
         // as a web src, so it must use "/" even when the export runs on Windows.
         const rel = path.relative(opts.exportRoot, abs).split(path.sep).join("/");
@@ -543,16 +590,13 @@ export function createAssetCollector(opts: CreateOpts): AssetCollector {
           // association needed for dedup.
           originalUrl: safeUrlForLog(url),
           localPath: rel,
-          bytes: buf.length,
+          bytes,
           sha256: sha,
         };
         recs.push(rec);
         byOriginalUrl.set(url, rec);
         opts.onDownloaded?.(rec);
-        opts.log.debug(
-          { url: safeUrlForLog(url), localPath: rel, bytes: buf.length },
-          "asset downloaded",
-        );
+        opts.log.debug({ url: safeUrlForLog(url), localPath: rel, bytes }, "asset downloaded");
         return rec;
       } catch (err) {
         inFlight.delete(url); // Allow retry if it failed
