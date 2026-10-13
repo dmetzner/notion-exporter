@@ -332,6 +332,34 @@ interface CreateOpts {
   dnsLookupImpl?: DnsLookupImpl;
   concurrency?: number;
   onDownloaded?: (rec: AssetRecord) => void;
+  /** Per-asset byte cap; defaults to {@link MAX_ASSET_BYTES}. */
+  maxBytes?: number;
+}
+
+/**
+ * Assets are buffered in memory to hash them, so an external link to a
+ * multi-GB file would OOM the export. 1 GiB stays above anything a Notion
+ * page realistically embeds.
+ */
+export const MAX_ASSET_BYTES = 1024 ** 3;
+
+async function readCapped(res: Response, max: number): Promise<Buffer> {
+  const tooLarge = () => new Error(`asset exceeds ${max} bytes`);
+  if (Number(res.headers.get("content-length")) > max) throw tooLarge();
+  if (!res.body) {
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > max) throw tooLarge();
+    return buf;
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  // Throwing inside for-await cancels the stream, so the rest is never read.
+  for await (const chunk of res.body) {
+    total += chunk.length;
+    if (total > max) throw tooLarge();
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 }
 
 // Capture the platform's original `fetch` at module load so we can detect
@@ -525,7 +553,7 @@ export function createAssetCollector(opts: CreateOpts): AssetCollector {
           fails.push(failure);
           throw new Error(`asset download failed (${res.status}): ${safeAttempted}`);
         }
-        const buf = Buffer.from(await res.arrayBuffer());
+        const buf = await readCapped(res, opts.maxBytes ?? MAX_ASSET_BYTES);
         const sha = crypto.createHash("sha256").update(buf).digest("hex");
         const ext = guessExt(url, res.headers.get("content-type"), hint);
         const filename = `${sha.slice(0, 16)}${ext}`;
