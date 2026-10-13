@@ -3197,6 +3197,28 @@ describe("security: code and image blocks cannot break out into HTML", () => {
     expect(html).not.toContain("<img src=x");
   });
 
+  it.each([
+    ["inline link", "[click](javascript:alert(1))"],
+    ["image", "![x](javascript:alert(1))"],
+    ["autolink", "<javascript:alert(1)>"],
+    ["reference link", "[click][r]\n\n[r]: javascript:alert(1)"],
+  ])("plain text cannot become a javascript: %s", (_label, text) => {
+    const page = pageWith({
+      id: "p1",
+      type: "paragraph",
+      paragraph: { rich_text: [rtNode(text)] },
+    });
+    const html = renderHtml("T", pageToMarkdown(page));
+    expect(html).not.toMatch(/(href|src)="javascript:/i);
+  });
+
+  it("keeps ordinary markdown links working", () => {
+    const html = renderHtml("T", "[a](https://example.com/x) [b](../Food.html) [c](mailto:a@b.c)");
+    expect(html).toContain('href="https://example.com/x"');
+    expect(html).toContain('href="../Food.html"');
+    expect(html).toContain('href="mailto:a@b.c"');
+  });
+
   it("escapes an unlocalised image URL that tries to break out of the attribute", () => {
     const md = pageToMarkdown(
       pageWith({

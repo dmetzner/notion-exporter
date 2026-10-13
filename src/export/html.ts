@@ -4,10 +4,19 @@ import { marked } from "marked";
 import { createPool } from "../util/pool.js";
 import { KATEX_CSS_FILENAME, SEARCH_BOOTSTRAP_JS } from "./clientAssets.js";
 import { escapeHtmlText as htmlEscape } from "./htmlEscape.js";
+import { safeLinkUrl } from "./markdown/util.js";
 import { safeSegment } from "./paths.js";
 import { STYLE_CSS } from "./styles.js";
 
 marked.setOptions({ gfm: true, breaks: false });
+// SECURITY: rt() escapes HTML but not Markdown, so Notion plain text such as
+// `[x](javascript:…)` reaches marked as real link syntax. Every href/src marked
+// itself produces goes through the same scheme gate as the renderer's own URLs.
+marked.use({
+  walkTokens(token) {
+    if (token.type === "link" || token.type === "image") token.href = safeLinkUrl(token.href);
+  },
+});
 
 const STYLE_FILENAME = "style.css";
 const GITHUB_URL = "https://github.com/dmetzner/notion-exporter";

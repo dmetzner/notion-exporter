@@ -651,6 +651,31 @@ describe("asset size cap", () => {
     await expect(collector.collect("https://x/big.bin")).rejects.toThrow(/exceeds 4 bytes/);
     expect(collector.failures()).toHaveLength(1);
     expect(collector.records()).toHaveLength(0);
+    // No partial file is left behind in the assets dir.
+    const left = await fsp.readdir(path.join(tmp, "assets")).catch(() => []);
+    expect(left).toEqual([]);
+    await fsp.rm(tmp, { recursive: true, force: true });
+  });
+
+  it("cancels the body when content-length is already over the cap", async () => {
+    let cancelled = false;
+    const body = new ReadableStream({
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const tmp = await fsp.mkdtemp(path.join(os.tmpdir(), "ne-cap-"));
+    const collector = createAssetCollector({
+      assetsDir: path.join(tmp, "assets"),
+      exportRoot: tmp,
+      log: createLogger("silent"),
+      dnsLookupImpl: publicDns,
+      fetchImpl: (async () =>
+        new Response(body, { headers: { "content-length": "999" } })) as unknown as typeof fetch,
+      maxBytes: 4,
+    });
+    await expect(collector.collect("https://x/big.bin")).rejects.toThrow(/exceeds 4 bytes/);
+    expect(cancelled).toBe(true);
     await fsp.rm(tmp, { recursive: true, force: true });
   });
 });
