@@ -6,7 +6,7 @@ Shipped surface, non-goals, and architectural invariants for
 
 ## Shipped
 
-`notion-exporter` is a Node 20+ CLI that backs up a single Notion workspace to
+`notion-exporter` is a Node 22+ CLI that backs up a single Notion workspace to
 a local, timestamped directory containing full-fidelity raw JSON, a
 hand-rolled Markdown tree, a self-contained HTML site, and downloaded assets.
 Four commands cover the lifecycle: `check` validates the token and reports
@@ -96,55 +96,5 @@ tech-debt cleanup on top of that surface. Notable areas:
 
 ## Architectural invariants
 
-These rules bind every change — load-bearing architectural invariants of
-the project. Breaking any of them silently corrupts exports.
-
-- **All Notion API calls go through `RateLimitedNotion#run`.** The
-  Bottleneck limiter and 429/5xx retry are wired there; bypassing it
-  silently breaks rate-limit behavior under load.
-
-- **Asset URLs from Notion expire (~1 h).** Always download; never store
-  the raw URL. When the original URL 403s mid-export, re-fetch the parent
-  via `notion.pages.retrieve` to mint a fresh signed URL — that's what the
-  `refresh` callback wired through `assets.collect()` is for. `repair`
-  exists specifically to retry this against the most recent export.
-
-- **`rt()` (`src/export/markdown.ts`) escapes HTML before applying
-  styles.** Every Notion-supplied `plain_text` run flows through
-  `escapeHtmlText` first, then bold/italic/link/`<img>` wrappers are
-  layered on. Skipping the escape lets a `<script>` in a page title
-  execute when the export is opened in a browser.
-
-- **Sidebar HTML is shared across every page.** `injectSidebars`
-  (`src/export/html.ts`) builds one nav tree and stamps it into every
-  emitted HTML file with depth-correct `../` prefixes. Custom-emoji
-  `<img>` tags whose `src` is root-relative `assets/<hash>.png` are
-  rewritten to `${prefix}../assets/...` at injection time — do NOT
-  hard-code relative paths inside the nav builder.
-
-- **Notion `:name:` custom emojis ship as `plain_text` + a `custom_emoji`
-  mention.** Render the mention as an inline `<img class="custom-emoji">`;
-  if you forget, the literal `:name:` leaks into the page.
-
-- **Hierarchy resolution is cycle-aware.** `buildHierarchy` in
-  `commands/export.ts` short-circuits cycles and refuses to cache results
-  whose ancestor chain was truncated. A different traversal path may
-  resolve the same id correctly — don't memoize the partial answer.
-
-- **Markdown converter is intentionally hand-rolled.** Do not pull in
-  `notion-to-md`. Extend `src/export/markdown.ts` for new block types;
-  keep output deterministic (snapshot tests live in `test/__snapshots__/`).
-
-- **Every URL-bearing attribute goes through `safeLinkUrl`.** The
-  helper (`src/export/markdown.ts`) rejects `javascript:` / `data:` /
-  `file:` / `vbscript:` URIs and returns `#` on rejection. It must wrap
-  every `<a href>`, `<img src>`, `<audio src>`, `<video src>`, and
-  `<iframe src>` emitted from a renderer. Skipping it lets a workspace
-  member plant clickable XSS via Notion `rich_text` `href` fields or a
-  media block URL.
-
-- **`writeStylesheet` emits ONLY `style.css`.** `writeKatexCss`,
-  `writeLightboxJs`, `writeLunr`, and `writeSearchJs` are independent
-  finalize calls. `export`, `rerender`, and `repair` each invoke them
-  explicitly; new client assets must be wired into all three command
-  finalize phases.
+The rules that bind every change live in [`CLAUDE.md`](./CLAUDE.md) § Invariants — one copy, so
+they cannot drift apart.

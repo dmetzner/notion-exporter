@@ -1,8 +1,7 @@
-# notion-exporter — guide for Claude Code
+# notion-exporter
 
-Backs a Notion workspace up to browsable Markdown + HTML on disk. This file holds the
-invariants and traps that are not obvious from any single source file; `README.md` is the
-user-facing description and `ROADMAP.md` is the shipped surface and non-goals.
+Backs a Notion workspace up to browsable Markdown + HTML on disk. `README.md` is the user-facing
+description (verbs, flags, output layout); `ROADMAP.md` is the shipped surface and non-goals.
 
 ## The gate
 
@@ -10,15 +9,7 @@ user-facing description and `ROADMAP.md` is the shipped surface and non-goals.
 pnpm check        # lint + typecheck + test + contrast — the CI mirror and the pre-commit gate
 ```
 
-Individual pieces when iterating:
-
-```bash
-pnpm dev <verb>   # tsx; verb = check|export|rerender|repair
-pnpm test         # vitest run
-pnpm typecheck    # tsc --noEmit
-pnpm lint         # biome check
-pnpm build        # tsup → dist/cli.js
-```
+`pnpm dev <verb>` runs the CLI from source; the other scripts are in `package.json`.
 
 ## How changes land
 
@@ -26,9 +17,9 @@ pnpm build        # tsup → dist/cli.js
 things: this repo's gate green locally (`pnpm check`), CI green, and an independent review with
 no unresolved high or major finding on the commit that gets merged.
 
-**A CI job that could not START is not a pass.** The Actions billing block dies in about three
-seconds with no logs and no steps; that is "could not run", and it is said out loud on the PR
-rather than merged past in silence.
+**A CI job that could not START is not a pass.** A billing-blocked Actions run dies with no logs
+and no steps; that is "could not run", and it is said out loud on the PR rather than merged past
+in silence.
 
 **The only exception is a project Daniel has explicitly called prototyping. This is not one.**
 
@@ -37,18 +28,6 @@ rather than merged past in silence.
 Node ≥ 22.19 (undici 8 floor), TypeScript strict, ESM-only, pnpm. Vitest (unit + snapshot;
 integration tests mock `@notionhq/client`). Biome for lint + format — no Prettier, no ESLint.
 tsup → a single `dist/cli.js` bin.
-
-## The four verbs
-
-| Verb | Use when |
-|---|---|
-| `check` | Smoke-test `NOTION_TOKEN` and report visible objects. No writes. |
-| `export` | Full or incremental backup → `OUT_DIR/<timestamp>/`. `--force` for a clean run. |
-| `rerender` | Regenerate md/html/sitemap/search from existing raw JSON. No API calls. |
-| `repair` | Retry failed assets in the most recent export, re-signing expired Notion S3 URLs. |
-
-`export` defaults to **incremental ON, resume ON**. `--no-incremental` / `--no-resume` disable
-them individually; `--force` flips both off.
 
 ## Invariants
 
@@ -86,7 +65,7 @@ Load-bearing. Breaking any of them corrupts exports silently.
    ancestor chain was truncated by a cycle — a different traversal may resolve correctly, so
    the partial answer must not be memoized.
 
-7. **Incremental and resume are ON by default.** Incremental clones raw/md/html and carries
+7. **Incremental and resume are ON by default** (`--force` turns both off). Incremental clones raw/md/html and carries
    asset records forward when `lastEditedTime` matches; resume continues writing into the most
    recent partial export. **Any new per-page state must be re-emittable from cloned raw JSON**,
    or both `rerender` and resume regress.
@@ -95,7 +74,8 @@ Load-bearing. Breaking any of them corrupts exports silently.
    (`src/export/html.ts`). It escapes all five of `& < > " '`, so the same call is safe inside
    element bodies *and* inside `title=`, `alt=`, `data-*=`. Never reach for a body-only escaper
    when emitting an attribute. Notion-sourced titles, captions, emoji slugs and property values
-   are the strings most commonly threaded into attributes.
+   are the strings most commonly threaded into attributes. `rt()` (`src/export/markdown.ts`)
+   escapes every `plain_text` run *before* layering bold/link/`<img>` wrappers on it.
 
 9. **Every URL-bearing attribute in user-facing HTML MUST go through `safeLinkUrl(...)`**
    (`src/export/markdown.ts`) before interpolation. It rejects `javascript:` / `data:` /
@@ -105,9 +85,9 @@ Load-bearing. Breaking any of them corrupts exports silently.
 
 10. **`writeStylesheet` emits ONLY `style.css`.** Each client asset (`writeKatexCss`,
     `writeLightboxJs`, `writeLunr`, `writeSearchJs`) is its own finalize call, and all three
-    HTML-emitting commands — `export`, `rerender`, `repair` — invoke each writer explicitly. A
-    regression here once shipped repaired exports referencing files that were not there. **A
-    new client asset needs a writer AND a wire-up in all three finalize phases.**
+    HTML-emitting commands — `export`, `rerender`, `repair` — invoke each writer explicitly. **A
+    new client asset needs a writer AND a wire-up in all three finalize phases**, or exports
+    reference files that are not there.
 
 11. **`exportTimestamp` is the wall-clock time the rendered HTML was last produced.** Both
     `runExport` and `runRerender` set it and write the same value into `manifest.timestamp`, so
@@ -124,65 +104,42 @@ Load-bearing. Breaking any of them corrupts exports silently.
 - **Backticks inside the `STYLE_CSS` template literal** (`src/export/styles.ts`) break the
   build — the file is one tagged template. Strip backticks from JSDoc and CSS content; escape a
   literal `${...}` as `\${...}`.
-- **Custom-emoji `local_path` values are root-relative.** Every filesystem op on them must go
-  through `assertWithinRoot` (`src/util/fs.ts`), or a poisoned raw JSON traverses out of
-  `paths.root`.
-- **`assertWithinRootAsync` is the symlink-aware variant** for paths read from disk (`rerender`,
-  `repair`). The sync `assertWithinRoot` is for the write path only, where the path does not yet
-  exist. A symlink planted in a stamped export tree only fails the realpath-checked gate.
+- **Every path and asset filesystem op goes through `assertWithinRoot`** (`src/util/fs.ts`) —
+  custom-emoji `local_path` values are root-relative, and a poisoned raw JSON otherwise
+  traverses out of `paths.root`. Paths read from disk (`rerender`, `repair`) use the
+  symlink-aware `assertWithinRootAsync`; the sync variant is for not-yet-existing write paths.
 - **Page chrome is built in one place — `src/export/pipeline.ts#renderPage`** (and
   `renderDatabase` for standalone DB pages). All three commands delegate to it rather than
   assembling `MarkdownOptions` themselves. A new field on `PageHeader`, `RenderServices` or
   `PageChrome` gets wired into the pipeline **and** every test caller that hand-rolls
-  `MarkdownOptions`. If you are tempted to edit a command, the pipeline is the right seam.
+  `MarkdownOptions`.
 - **`escapeHtmlText` is attribute-safe, but `<code>` content does NOT go through it.** The
   inline-code path emits raw `<code>…</code>` and `marked` re-escapes code contents itself;
   pre-escaping double-escapes `'` and `"`. Mirror the marked semantics in any new code-emitting
   path.
-- **The SSRF gate fires on every asset hop** (`assertPublicHttpUrl`, `src/export/assets.ts`).
-  Redirects are followed manually so each hop is re-checked — never switch to
-  `fetch(..., { redirect: "follow" })`.
-- **Do not reinvent the asset redirect helpers.** `RedirectLoopError` is terminal; the SSRF
-  retry loop must not wrap it in a retry. `byOriginalUrl` keeps the raw-URL → `AssetRecord` map
-  across hops so the final record is keyed by the *pre-redirect* URL.
-- **Notion API v5 quirks.** DB rows report `parent.type === "data_source_id"` (older payloads
-  use `database_id`); search returns unsupported `data_source` objects, so filter to
-  `page`/`database`; inline databases arrive with `parent.type === "block_id"` and need
-  `resolveContainer` (`src/notion/crawl.ts`); option lists come from
-  `notion.dataSources.retrieve({ data_source_id })`, **not** `databases.retrieve(dbId)`. That
-  call is loose-typed via a cast in `src/notion/dataSourceSchema.ts` because the v5 typings are
-  in flux — a PR that drops the cast must verify the schema shape still hydrates.
-
-## Config
-
-Every env var is validated by the zod schema in `src/config.ts`, and the JSDoc per key is the
-documentation — `.env.example` is the friendlier reference. Do not document them a third time
-here.
+- **The SSRF gate (`assertPublicHttpUrl`, `src/export/assets.ts`) re-checks every redirect
+  hop** — never switch to `fetch(..., { redirect: "follow" })`. `RedirectLoopError` is terminal
+  (never retried); `byOriginalUrl` keys the final record by the *pre-redirect* URL.
+- **Notion API v5 shapes differ from older payloads** (DB-row parents, `data_source` search hits,
+  inline-DB parents, option lists). Read [`docs/notion-api-v5.md`](docs/notion-api-v5.md) before
+  touching crawl or schema code.
 
 ## Layout
 
-Only the entries whose location is not guessable:
+Locations not named above:
 
-- `src/export/pipeline.ts` — the single `renderPage`/`renderDatabase` chokepoint every command
-  delegates to.
-- `src/export/markdown.ts` — the hand-rolled block renderer (`RENDERERS` dispatch) and
-  `safeLinkUrl`.
-- `src/export/html.ts` — marked, sitemap, `injectSidebars`, `escapeHtmlText`.
-- `src/export/styles.ts` — `STYLE_CSS`, one tagged template literal.
-- `src/export/assets.ts` — downloader, SSRF gate, content-addressed dedup, redirect helpers.
-- `src/notion/client.ts` — `RateLimitedNotion`; `src/notion/views.ts` — the Views API capture.
-- `src/util/fs.ts` — `assertWithinRoot` (sync, pre-write) and `assertWithinRootAsync` (the read
-  seam).
+- `src/notion/views.ts` — the Views API capture.
+- `src/config.ts` — the zod schema for every env var; its per-key JSDoc is the documentation.
 
 ## Conventions
 
-- Tests first or alongside. A new block type ships with a snapshot.
-- No new runtime dependency without ROI — every dependency is a maintenance promise.
-- Path and asset mutations go through `assertWithinRoot`. Log via pino, never `console.log`.
+A new block type ships with a snapshot. No new runtime dependency without clear ROI. Log via
+pino, never `console.log`.
 
 ## More
 
+- [`docs/notion-api-v5.md`](docs/notion-api-v5.md) — v5 payload shapes and the
+  `dataSources.retrieve` cast.
 - [`docs/database-views.md`](docs/database-views.md) — the five-tier column-order chain, the
   Views API capture, tabbed rendering, and the linked-view rescue.
-- `ROADMAP.md` — shipped surface, non-goals, invariants.
-- Git history is the changelog.
+- `ROADMAP.md` — shipped surface and non-goals.
