@@ -95,7 +95,7 @@ export async function assertWithinRootAsync(root: string, candidate: string): Pr
  * Tradeoffs:
  *  - `O_NOFOLLOW` is POSIX-portable and supported on macOS + Linux. On
  *    Windows the flag is silently ignored by libuv; the realpath check still
- *    runs but the gate degrades to the same TOCTOU window as before (we
+ *    runs but the gate degrades to the TOCTOU window of a plain open-by-path (we
  *    accept this — the target deployment is macOS/Linux).
  *  - Parent-directory symlinks still rely on the realpath gate (Node has no
  *    cross-platform `openat`/`O_NOFOLLOW`-per-segment). The window between
