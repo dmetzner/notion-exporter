@@ -87,16 +87,16 @@ export async function assertWithinRootAsync(root: string, candidate: string): Pr
  * resolved path to catch a parent-directory symlink that points outside the
  * root.
  *
- * Callers that previously did
+ * Prefer this over
  *   `const p = await assertWithinRootAsync(root, rel); JSON.parse(await fsp.readFile(p, 'utf8'))`
- * should switch to this helper — there is no second open by path, so the
+ * — there is no second open by path, so the
  * inode read is the same inode we validated.
  *
  * Tradeoffs:
  *  - `O_NOFOLLOW` is POSIX-portable and supported on macOS + Linux. On
  *    Windows the flag is silently ignored by libuv; the realpath check still
- *    runs but the gate degrades to the same TOCTOU window as before (we
- *    accept this — the target deployment is macOS/Linux per CLAUDE.md).
+ *    runs but the gate degrades to the TOCTOU window of a plain open-by-path (we
+ *    accept this — the target deployment is macOS/Linux).
  *  - Parent-directory symlinks still rely on the realpath gate (Node has no
  *    cross-platform `openat`/`O_NOFOLLOW`-per-segment). The window between
  *    realpath and the prior `open` collapses to "the parent component is a

@@ -727,7 +727,7 @@ async function collectSearchDocs(
       } catch (err) {
         // Missing/unreadable md — skip the snippet, but log so operators
         // notice when (for example) a symlink trips `assertWithinRootAsync`
-        // or the md file vanishes mid-walk. Previously swallowed silently.
+        // or the md file vanishes mid-walk.
         log.warn(
           { filename: path.basename(full), err: (err as Error).message },
           "repair: search-doc read failed; snippet skipped",

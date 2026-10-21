@@ -459,8 +459,8 @@ async function expandViaChildPages(
   await Promise.all(workers);
 }
 
-// Single pass collecting both child_page and child_database ids — the two
-// were previously separate recursive walks over the same block tree.
+// Single pass collecting both child_page and child_database ids — one
+// recursive walk over the block tree instead of two.
 function collectChildItems(
   blocks: NotionBlock[],
   out: { pages: string[]; databases: string[] } = { pages: [], databases: [] },

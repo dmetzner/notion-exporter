@@ -146,8 +146,7 @@ async function loadRawData(
 //   • childPageParents     — child_page/child_database block id → owner pages
 //   • blockContainers      — every block id → owner pages
 //
-// Previously these came from two independent walks (`buildPositionIndex` +
-// `buildContainerIndexes`). For 900 pages × ~200 blocks deep that's ~376k
+// One fused walk rather than two independent ones. For 900 pages × ~200 blocks deep that's ~376k
 // visits — fusing collapses it to ~190k.
 //
 // The custom-emoji harvest is intentionally NOT folded in here — it lives in
