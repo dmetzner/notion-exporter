@@ -84,10 +84,10 @@ Load-bearing. Breaking any of them corrupts exports silently.
    member plant clickable XSS through a `rich_text` `href`, a media block URL, or a file link.
 
 10. **`writeStylesheet` emits ONLY `style.css`.** Each client asset (`writeKatexCss`,
-    `writeLightboxJs`, `writeLunr`, `writeSearchJs`) is its own finalize call, and all three
-    HTML-emitting commands — `export`, `rerender`, `repair` — invoke each writer explicitly. **A
-    new client asset needs a writer AND a wire-up in all three finalize phases**, or exports
-    reference files that are not there.
+    `writeLightboxJs`, `writeLunr`, `writeSearchJs`) has its own writer, and all three
+    HTML-emitting commands — `export`, `rerender`, `repair` — reach them through one
+    `finalizeSite` (`src/export/finalizeAssets.ts`). **A new client asset needs a writer AND a
+    line in `finalizeClientAssets`**, or exports reference files that are not there.
 
 11. **`exportTimestamp` is the wall-clock time the rendered HTML was last produced.** Both
     `runExport` and `runRerender` set it and write the same value into `manifest.timestamp`, so
