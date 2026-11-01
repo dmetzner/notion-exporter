@@ -90,7 +90,7 @@ renderer layer:
 - **`safeLinkUrl` on every URL-bearing attribute.** Every `<a href>`,
   `<img src>`, `<audio src>`, `<video src>`, and `<iframe src>` emitted
   by the Markdown / HTML renderers flows through `safeLinkUrl`
-  (`src/export/markdown.ts`), which rejects `javascript:` / `data:` /
+  (`src/export/markdown/util.ts`), which rejects `javascript:` / `data:` /
   `file:` / `vbscript:` URIs and returns `#` on rejection. Workspace
   members cannot plant clickable XSS via a Notion `rich_text` `href`
   or a media-block URL.

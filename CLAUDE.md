@@ -43,15 +43,14 @@ Load-bearing. Breaking any of them corrupts exports silently.
    exists to retry this against the most recent export, mutating raw JSON in place so later
    rerenders pick up the new `local_path`.
 
-3. **The Markdown renderer is hand-rolled** (`src/export/markdown.ts`). Do **not** add
+3. **The Markdown renderer is hand-rolled** (`src/export/markdown/`). Do **not** add
    `notion-to-md`. Extend the renderer for new block types and keep output deterministic — the
    snapshots under `test/__snapshots__/` are the gate.
 
 4. **Custom emoji shortcodes (`:slug:`) render as `<img class="custom-emoji">`.** Notion ships
    them as a separate `plain_text` run plus a `custom_emoji` mention, so titles reaching
-   sidebar entries, breadcrumbs and child-page links must pass through `enrichTitle`
-   (`src/commands/rerender.ts`), or the equivalent inline swap in `commands/export.ts`, before
-   emission. Otherwise the literal `:slug:` leaks into the rendered nav.
+   sidebar entries, breadcrumbs and child-page links must pass through `enrichTitleHtml`
+   (`src/export/titleHtml.ts`) before emission, or the literal `:slug:` leaks into the nav.
 
 5. **Sidebar HTML is shared across every page.** `injectSidebars` (`src/export/html.ts`) builds
    one nav tree and stamps it into every HTML file with depth-correct `../` prefixes.
@@ -71,14 +70,14 @@ Load-bearing. Breaking any of them corrupts exports silently.
    or both `rerender` and resume regress.
 
 8. **Operator-untrusted text in HTML attribute contexts MUST use `escapeHtmlText`**
-   (`src/export/html.ts`). It escapes all five of `& < > " '`, so the same call is safe inside
+   (`src/export/htmlEscape.ts`). It escapes all five of `& < > " '`, so the same call is safe inside
    element bodies *and* inside `title=`, `alt=`, `data-*=`. Never reach for a body-only escaper
    when emitting an attribute. Notion-sourced titles, captions, emoji slugs and property values
-   are the strings most commonly threaded into attributes. `rt()` (`src/export/markdown.ts`)
+   are the strings most commonly threaded into attributes. `rt()` (`src/export/markdown/richtext.ts`)
    escapes every `plain_text` run *before* layering bold/link/`<img>` wrappers on it.
 
 9. **Every URL-bearing attribute in user-facing HTML MUST go through `safeLinkUrl(...)`**
-   (`src/export/markdown.ts`) before interpolation. It rejects `javascript:` / `data:` /
+   (`src/export/markdown/util.ts`) before interpolation. It rejects `javascript:` / `data:` /
    `file:` / `vbscript:` and returns `#`. It applies to every `<a href>`, `<img src>`,
    `<audio src>`, `<video src>`, `<iframe src>` and embed anchor. Bypassing it lets a workspace
    member plant clickable XSS through a `rich_text` `href`, a media block URL, or a file link.
@@ -101,8 +100,8 @@ Load-bearing. Breaking any of them corrupts exports silently.
 
 ## Gotchas
 
-- **Backticks inside the `STYLE_CSS` template literal** (`src/export/styles.ts`) break the
-  build — the file is one tagged template. Strip backticks from JSDoc and CSS content; escape a
+- **Backticks inside the CSS template literals** (`src/export/styles/*.ts`) break the build —
+  each segment is one tagged template. Strip backticks from JSDoc and CSS content; escape a
   literal `${...}` as `\${...}`.
 - **Every path and asset filesystem op goes through `assertWithinRoot`** (`src/util/fs.ts`) —
   custom-emoji `local_path` values are root-relative, and a poisoned raw JSON otherwise
@@ -142,4 +141,3 @@ pino, never `console.log`.
   `dataSources.retrieve` cast.
 - [`docs/database-views.md`](docs/database-views.md) — the five-tier column-order chain, the
   Views API capture, tabbed rendering, and the linked-view rescue.
-- `ROADMAP.md` — shipped surface and non-goals.
