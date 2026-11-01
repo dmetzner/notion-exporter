@@ -41,10 +41,9 @@ Conventional Commits style:
 
 ## Areas where help is wanted
 
-- Picking up an in-flight item from [`ROADMAP.md`](./ROADMAP.md) or one of
-  the open [GitHub issues](https://github.com/dmetzner/notion-exporter/issues).
+- One of the open [GitHub issues](https://github.com/dmetzner/notion-exporter/issues).
 - Support for additional block types in the Markdown converter
-  (`src/export/markdown.ts`) — note the renderer is intentionally hand-rolled.
+  (`src/export/markdown/blocks.ts`) — note the renderer is intentionally hand-rolled.
 - Test fixtures from real (anonymised) workspaces.
 
 ## Code of conduct

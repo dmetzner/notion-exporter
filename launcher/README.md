@@ -1,14 +1,14 @@
 # Notion Export launcher
 
-Cross-platform automation that lives **inside** this fork of
+Cross-platform automation that lives **inside**
 [`dmetzner/notion-exporter`](https://github.com/dmetzner/notion-exporter): it
 updates the code, builds it, runs the export, and opens the result. One repo,
 clone it on any device.
 
 ```
-notion-exporter/            the repo (this fork)
-├─ src/ ...                 upstream exporter source
-└─ launcher/                <- our tooling
+notion-exporter/            the repo
+├─ src/ ...                 exporter source
+└─ launcher/                <- the launcher
    ├─ lib.mjs               shared helpers: repo + OUT_DIR + latest-export + open
    ├─ refresh.mjs           portable engine: update -> build -> export -> open
    ├─ tui.mjs               cross-platform terminal UI (hotkeys)
@@ -37,7 +37,7 @@ Everything else just calls it:
 ### refresh.mjs flags
 
 - `--no-open` - don't open the browser when done (used by scheduled/headless runs)
-- `--no-update` - skip git/npm; just export with the current build
+- `--no-update` - skip git pull + install/build; just export with the current build
 - `--no-export` - only update (git pull + build); don't export
 
 ## Configuration

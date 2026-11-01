@@ -45,8 +45,8 @@ folder at the output and you have an honest archive.
   capability).
 - **Accessible by default** — WCAG-AA contrast on every swatch in both light
   and dark themes, enforced by `pnpm contrast`.
-- **Custom Markdown converter** — extend `src/export/markdown.ts` for new block
-  types; behavior stays deterministic and snapshot-tested.
+- **Custom Markdown converter** — extend `src/export/markdown/blocks.ts` for new
+  block types; behavior stays deterministic and snapshot-tested.
 - **Incremental + resume on by default** — re-runs only re-fetch pages whose
   `last_edited_time` changed, and a crash mid-export picks up where it stopped.
 - **Retention pruning** — keep the last N stamped exports, prune the rest.
@@ -297,7 +297,7 @@ warn log). All five keys are optional:
 pnpm contrast
 ```
 
-One-shot check of every text/background swatch in `src/export/styles.ts`
+One-shot check of every text/background swatch in `src/export/styles/`
 against WCAG-AA in both light and dark themes. CI runs this on every PR;
 run it locally after touching any colour value.
 

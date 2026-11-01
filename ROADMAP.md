@@ -89,10 +89,9 @@ tech-debt cleanup on top of that surface. Notable areas:
   OAuth would require a hosted callback proxy (Notion has no PKCE); out of
   scope.
 - **Not a Notion mirror.** The output is a faithful point-in-time archive,
-  not a live read-through cache. A DB's *primary* view is snapshotted (layout
-  + group + filtered/sorted order, captured at export time); secondary views,
-  live re-querying, and workspace-level settings outside the exposed API are
-  not reconstructed.
+  not a live read-through cache. A DB's views are snapshotted (layout + group
+  + filtered/sorted order, captured at export time); live re-querying and
+  workspace-level settings outside the exposed API are not reconstructed.
 
 ## Architectural invariants
 
