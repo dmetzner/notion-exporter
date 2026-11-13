@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises";
-import * as NotionSDK from "@notionhq/client";
 import type { Client, LogLevel } from "@notionhq/client";
+import * as NotionSDK from "@notionhq/client";
 import Bottleneck from "bottleneck";
 import type { Logger } from "../logger.js";
 
@@ -9,8 +9,8 @@ export { sleep };
 // Node 24 does not detect named exports from this CommonJS SDK entry point.
 // Prefer the ESM named export when available, then fall back to its CJS default.
 const NotionClient =
-  (NotionSDK as unknown as { Client?: typeof Client; default?: { Client: typeof Client } }).Client ??
-  (NotionSDK as unknown as { default: { Client: typeof Client } }).default.Client;
+  (NotionSDK as unknown as { Client?: typeof Client; default?: { Client: typeof Client } })
+    .Client ?? (NotionSDK as unknown as { default: { Client: typeof Client } }).default.Client;
 
 export interface RateLimitedClientOptions {
   token: string;
@@ -71,7 +71,11 @@ export class RateLimitedNotion {
     // its per-request WARN logs for handled 429/5xx; genuine errors still
     // surface. Literal (= LogLevel.ERROR) keeps this a type-only import, so
     // test mocks of @notionhq/client need not also export the LogLevel enum.
-    this.client = new NotionClient({ auth: opts.token, logLevel: "error" as LogLevel, retry: false });
+    this.client = new NotionClient({
+      auth: opts.token,
+      logLevel: "error" as LogLevel,
+      retry: false,
+    });
     this.limiter = new Bottleneck({
       minTime: opts.minTime ?? 150,
       maxConcurrent: opts.maxConcurrent ?? 4,
